@@ -1,0 +1,19 @@
+[project]
+name = "entsoe-pipeline"
+version = "0.1.0"
+description = "Add your description here"
+authors = [
+    { name = "Ramin Hassani", email = "raminrst999@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=3.0.6",
+    "requests>=2.34.2",
+]
+
+[project.scripts]
+entsoe-pipeline = "entsoe_pipeline:main"
+
+[build-system]
+requires = ["uv_build>=0.12.13,<0.13.0"]
+build-backend = "uv_build"
