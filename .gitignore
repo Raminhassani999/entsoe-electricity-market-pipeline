@@ -11,6 +11,9 @@ __pycache__/
 *.tfstate
 *.tfstate.backup
 
+# pipeline data
+data/
+
 # OS junk
 .DS_Store
 Thumbs.db
