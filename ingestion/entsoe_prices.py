@@ -5,15 +5,10 @@ from datetime import datetime, timedelta, time, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import xml.etree.ElementTree as ET
-
 import pandas as pd
 import requests
 from dotenv import load_dotenv
 
-
-# ---------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------
 
 load_dotenv()
 
@@ -32,10 +27,6 @@ except ZoneInfoNotFoundError:
         "Install it with: uv add tzdata"
     )
 
-
-# ---------------------------------------------------------
-# Command-line arguments
-# ---------------------------------------------------------
 
 def parse_arguments():
     """
@@ -73,9 +64,6 @@ def parse_arguments():
     return parser.parse_args()
 
 
-# ---------------------------------------------------------
-# Date handling
-# ---------------------------------------------------------
 
 def get_target_date(date_argument: str | None):
     """
@@ -149,10 +137,6 @@ def build_request_period(target_date):
     )
 
 
-# ---------------------------------------------------------
-# Resolution
-# ---------------------------------------------------------
-
 def parse_resolution(
     resolution: str,
 ) -> timedelta:
@@ -187,10 +171,6 @@ def parse_resolution(
     )
 
 
-# ---------------------------------------------------------
-# Datetime parsing
-# ---------------------------------------------------------
-
 def parse_datetime(
     value: str,
 ) -> datetime:
@@ -207,9 +187,6 @@ def parse_datetime(
     )
 
 
-# ---------------------------------------------------------
-# API request
-# ---------------------------------------------------------
 
 def fetch_day_ahead_prices(
     token: str,
@@ -241,10 +218,6 @@ def fetch_day_ahead_prices(
     return response.text
 
 
-# ---------------------------------------------------------
-# XML parsing
-# ---------------------------------------------------------
-
 def parse_prices(
     xml_text: str,
 ) -> pd.DataFrame:
@@ -267,9 +240,6 @@ def parse_prices(
 
     rows = []
 
-    # -----------------------------------------------------
-    # TimeSeries
-    # -----------------------------------------------------
 
     for time_series in root.findall(
         "{*}TimeSeries"
@@ -287,9 +257,6 @@ def parse_prices(
             "{*}price_Measure_Unit.name"
         )
 
-        # -------------------------------------------------
-        # Period
-        # -------------------------------------------------
 
         for period in time_series.findall(
             "{*}Period"
@@ -317,9 +284,6 @@ def parse_prices(
                 resolution
             )
 
-            # -------------------------------------------------
-            # Points
-            # -------------------------------------------------
 
             for point in period.findall(
                 "{*}Point"
@@ -392,9 +356,6 @@ def parse_prices(
                     }
                 )
 
-    # -----------------------------------------------------
-    # DataFrame
-    # -----------------------------------------------------
 
     df = pd.DataFrame(
         rows
@@ -433,10 +394,6 @@ def parse_prices(
 
     return df
 
-
-# ---------------------------------------------------------
-# Filter target day
-# ---------------------------------------------------------
 
 def filter_to_target_day(
     df: pd.DataFrame,
@@ -492,11 +449,6 @@ def filter_to_target_day(
         )
     )
 
-
-# ---------------------------------------------------------
-# Data quality validation
-# ---------------------------------------------------------
-
 def validate_day(
     df: pd.DataFrame,
     start_local: datetime,
@@ -514,9 +466,6 @@ def validate_day(
             "No price data exists for the target day."
         )
 
-    # -----------------------------------------------------
-    # Resolution
-    # -----------------------------------------------------
 
     resolutions = (
         df["resolution"]
@@ -535,9 +484,6 @@ def validate_day(
         resolution
     )
 
-    # -----------------------------------------------------
-    # Convert boundaries to UTC
-    # -----------------------------------------------------
 
     start_utc = (
         start_local.astimezone(
@@ -551,9 +497,6 @@ def validate_day(
         )
     )
 
-    # -----------------------------------------------------
-    # Expected timestamps
-    # -----------------------------------------------------
 
     expected_times = pd.date_range(
         start=start_utc,
@@ -562,10 +505,6 @@ def validate_day(
         tz="UTC",
     )
 
-    # -----------------------------------------------------
-    # Missing timestamps
-    # -----------------------------------------------------
-
     missing_times = (
         expected_times
         .difference(
@@ -573,9 +512,6 @@ def validate_day(
         )
     )
 
-    # -----------------------------------------------------
-    # Duplicate timestamps
-    # -----------------------------------------------------
 
     duplicate_count = (
         df["delivery_start_utc"]
@@ -583,9 +519,6 @@ def validate_day(
         .sum()
     )
 
-    # -----------------------------------------------------
-    # Print validation
-    # -----------------------------------------------------
 
     print(
         "\nData quality check:"
@@ -629,21 +562,9 @@ def validate_day(
     return missing_times
 
 
-# ---------------------------------------------------------
-# Main
-# ---------------------------------------------------------
-
 def main():
 
-    # -----------------------------------------------------
-    # Read command-line arguments
-    # -----------------------------------------------------
-
     args = parse_arguments()
-
-    # -----------------------------------------------------
-    # API token
-    # -----------------------------------------------------
 
     token = os.getenv(
         "ENTSOE_API_TOKEN"
@@ -654,10 +575,6 @@ def main():
             "ENTSOE_API_TOKEN not found. "
             "Check your .env file."
         )
-
-    # -----------------------------------------------------
-    # Determine target date
-    # -----------------------------------------------------
 
     target_date = get_target_date(
         args.date
@@ -684,10 +601,6 @@ def main():
         period_end,
     )
 
-    # -----------------------------------------------------
-    # Fetch
-    # -----------------------------------------------------
-
     print(
         "\nFetching ENTSO-E day-ahead prices..."
     )
@@ -703,10 +616,6 @@ def main():
         len(xml_text),
         "characters",
     )
-
-    # -----------------------------------------------------
-    # Save raw XML
-    # -----------------------------------------------------
 
     raw_dir = Path(
         "data/raw/entsoe"
@@ -732,10 +641,6 @@ def main():
         raw_file,
     )
 
-    # -----------------------------------------------------
-    # Parse XML
-    # -----------------------------------------------------
-
     all_prices = parse_prices(
         xml_text
     )
@@ -744,10 +649,6 @@ def main():
         "\nRows returned by ENTSO-E:",
         len(all_prices),
     )
-
-    # -----------------------------------------------------
-    # Filter target Italian day
-    # -----------------------------------------------------
 
     df = filter_to_target_day(
         all_prices,
@@ -760,19 +661,12 @@ def main():
         len(df),
     )
 
-    # -----------------------------------------------------
-    # Validate
-    # -----------------------------------------------------
-
     missing_times = validate_day(
         df,
         start_local,
         end_local,
     )
 
-    # -----------------------------------------------------
-    # Display first rows
-    # -----------------------------------------------------
 
     print(
         "\nFirst 10 rows:"
@@ -785,9 +679,6 @@ def main():
         )
     )
 
-    # -----------------------------------------------------
-    # Save processed CSV
-    # -----------------------------------------------------
 
     processed_dir = Path(
         "data/processed"
@@ -813,9 +704,6 @@ def main():
         processed_file,
     )
 
-    # -----------------------------------------------------
-    # Final summary
-    # -----------------------------------------------------
 
     print(
         "\nPipeline result:"
@@ -841,10 +729,6 @@ def main():
         processed_file,
     )
 
-
-# ---------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------
 
 if __name__ == "__main__":
     main()
