@@ -6,6 +6,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import xml.etree.ElementTree as ET
 import pandas as pd
+from google.cloud import storage
 import requests
 from dotenv import load_dotenv
 
@@ -18,6 +19,8 @@ API_URL = "https://web-api.tp.entsoe.eu/api"
 BIDDING_ZONE = "10Y1001A1001A73I"
 
 TIMEZONE_NAME = "Europe/Rome"
+
+GCS_BUCKET_NAME = "entso-e-electricity-pipeline-entsoe-raw"
 
 try:
     LOCAL_TIMEZONE = ZoneInfo(TIMEZONE_NAME)
@@ -561,6 +564,20 @@ def validate_day(
 
     return missing_times
 
+def upload_to_gcs(
+    bucket_name : str,
+    source_file: Path,
+    destination_blob: str,    
+    ) -> None:
+    
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(destination_blob)
+    blob.upload_from_filename(str(source_file))
+    print(
+        "Uploaded to GCS:",
+        f"gs://{bucket_name}/{destination_blob}",
+    )
 
 def main():
 
@@ -639,6 +656,18 @@ def main():
     print(
         "Raw XML saved to:",
         raw_file,
+    )
+    
+    gcs_object = (
+        f"raw/entsoe/prices/"
+        f"delivery_date={target_date}/"
+        f"day_ahead_prices.xml"
+    )
+
+    upload_to_gcs(
+        bucket_name=GCS_BUCKET_NAME,
+        source_file=raw_file,
+        destination_blob=gcs_object,
     )
 
     all_prices = parse_prices(
