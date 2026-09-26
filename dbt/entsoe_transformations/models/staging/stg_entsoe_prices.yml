@@ -1,0 +1,26 @@
+version: 2
+
+models:
+  - name: stg_entsoe_prices
+    description: Clean staging model for ENTSO-E day-ahead electricity prices.
+
+    columns:
+      - name: delivery_start_utc
+        description: UTC start time of the electricity delivery interval.
+        data_tests:
+          - not_null
+
+      - name: price_eur_mwh
+        description: Day-ahead electricity price in EUR per MWh.
+        data_tests:
+          - not_null
+
+      - name: bidding_zone
+        description: ENTSO-E bidding zone identifier.
+        data_tests:
+          - not_null
+
+      - name: delivery_date_local
+        description: Italian local delivery date.
+        data_tests:
+          - not_null

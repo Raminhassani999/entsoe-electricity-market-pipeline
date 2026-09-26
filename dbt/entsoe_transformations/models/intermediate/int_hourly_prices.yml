@@ -1,0 +1,22 @@
+version: 2
+
+models:
+  - name: int_hourly_prices
+    description: Hourly aggregation of ENTSO-E day-ahead electricity prices.
+
+    columns:
+      - name: bidding_zone
+        data_tests:
+          - not_null
+
+      - name: hour_start_utc
+        data_tests:
+          - not_null
+
+      - name: average_price_eur_mwh
+        data_tests:
+          - not_null
+
+      - name: intervals_available
+        data_tests:
+          - not_null

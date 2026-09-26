@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: entsoe
+    database: entso-e-electricity-pipeline
+    schema: entsoe
+    tables:
+      - name: raw_prices
