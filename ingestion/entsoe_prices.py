@@ -6,6 +6,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import xml.etree.ElementTree as ET
 import pandas as pd
+from google.cloud import bigquery
 from google.cloud import storage
 import requests
 from dotenv import load_dotenv
@@ -19,6 +20,10 @@ API_URL = "https://web-api.tp.entsoe.eu/api"
 BIDDING_ZONE = "10Y1001A1001A73I"
 
 TIMEZONE_NAME = "Europe/Rome"
+
+GCP_PROJECT_ID = "entso-e-electricity-pipeline"
+BIGQUERY_DATASET = "entsoe"
+BIGQUERY_TABLE = "raw_prices"
 
 GCS_BUCKET_NAME = "entso-e-electricity-pipeline-entsoe-raw"
 
@@ -578,6 +583,118 @@ def upload_to_gcs(
         "Uploaded to GCS:",
         f"gs://{bucket_name}/{destination_blob}",
     )
+def load_to_bigquery(
+    df: pd.DataFrame,
+    project_id: str,
+    dataset_id: str,
+    table_id: str,
+) -> None:
+    """
+    Load a Pandas DataFrame into BigQuery.
+
+    Data is first written to a staging table.
+    Then MERGE updates existing rows or inserts new rows.
+    """
+
+    client = bigquery.Client(
+        project=project_id
+    )
+
+    staging_table_id = f"{table_id}_staging"
+
+    staging_table = (
+        f"{project_id}."
+        f"{dataset_id}."
+        f"{staging_table_id}"
+    )
+
+    target_table = (
+        f"{project_id}."
+        f"{dataset_id}."
+        f"{table_id}"
+    )
+
+    job_config = bigquery.LoadJobConfig(
+        write_disposition=(
+            bigquery.WriteDisposition.WRITE_TRUNCATE
+        )
+    )
+
+    load_job = client.load_table_from_dataframe(
+        df,
+        staging_table,
+        job_config=job_config,
+    )
+
+    load_job.result()
+
+    print(
+        "Loaded rows into staging table:",
+        len(df),
+    )
+
+    merge_query = f"""
+    CREATE TABLE IF NOT EXISTS `{target_table}` AS
+    SELECT *
+    FROM `{staging_table}`
+    WHERE FALSE;
+
+    MERGE `{target_table}` AS target
+    USING `{staging_table}` AS source
+    ON target.bidding_zone = source.bidding_zone
+    AND target.delivery_start_utc =
+    source.delivery_start_utc
+
+    WHEN MATCHED THEN
+        UPDATE SET
+            price_eur_mwh = source.price_eur_mwh,
+            currency = source.currency,
+            unit = source.unit,
+            resolution = source.resolution,
+            revision_number = source.revision_number,
+            published_at_utc = source.published_at_utc,
+            delivery_start_local =
+                source.delivery_start_local,
+            delivery_date_local =
+                source.delivery_date_local
+
+    WHEN NOT MATCHED THEN
+        INSERT (
+            delivery_start_utc,
+            price_eur_mwh,
+            bidding_zone,
+            currency,
+            unit,
+            resolution,
+            revision_number,
+            published_at_utc,
+            delivery_start_local,
+            delivery_date_local
+        )
+        VALUES (
+            source.delivery_start_utc,
+            source.price_eur_mwh,
+            source.bidding_zone,
+            source.currency,
+            source.unit,
+            source.resolution,
+            source.revision_number,
+            source.published_at_utc,
+            source.delivery_start_local,
+            source.delivery_date_local
+        );
+    """
+
+    query_job = client.query(
+        merge_query
+    )
+
+    query_job.result()
+
+    print(
+        "BigQuery MERGE completed:",
+        target_table,
+    )
 
 def main():
 
@@ -695,7 +812,13 @@ def main():
         start_local,
         end_local,
     )
-
+    
+    load_to_bigquery(
+        df=df,
+        project_id=GCP_PROJECT_ID,
+        dataset_id=BIGQUERY_DATASET,
+        table_id=BIGQUERY_TABLE,
+    )
 
     print(
         "\nFirst 10 rows:"

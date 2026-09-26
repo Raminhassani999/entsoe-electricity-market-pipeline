@@ -7,8 +7,11 @@ authors = [
 ]
 requires-python = ">=3.11"
 dependencies = [
+    "google-cloud-bigquery>=3.45.2",
     "google-cloud-storage>=3.14.1",
     "pandas>=3.0.6",
+    "pandas-gbq>=0.35.2",
+    "pyarrow>=25.0.1",
     "python-dotenv>=1.2.3",
     "requests>=2.34.2",
     "tzdata>=2026.4",
