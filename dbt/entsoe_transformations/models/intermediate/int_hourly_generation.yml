@@ -1,0 +1,29 @@
+version: 2
+
+models:
+  - name: int_hourly_generation
+
+    columns:
+      - name: bidding_zone
+        tests:
+          - not_null
+
+      - name: psr_type
+        tests:
+          - not_null
+
+      - name: production_type
+        tests:
+          - not_null
+
+      - name: hour_start_utc
+        tests:
+          - not_null
+
+      - name: average_generation_mw
+        tests:
+          - not_null
+
+      - name: intervals_available
+        tests:
+          - not_null

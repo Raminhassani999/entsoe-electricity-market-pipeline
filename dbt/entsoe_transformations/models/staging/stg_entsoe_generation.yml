@@ -1,0 +1,29 @@
+version: 2
+
+models:
+  - name: stg_entsoe_generation
+
+    columns:
+      - name: delivery_start_utc
+        tests:
+          - not_null
+
+      - name: generation_mw
+        tests:
+          - not_null
+
+      - name: bidding_zone
+        tests:
+          - not_null
+
+      - name: psr_type
+        tests:
+          - not_null
+
+      - name: production_type
+        tests:
+          - not_null
+
+      - name: delivery_date_local
+        tests:
+          - not_null

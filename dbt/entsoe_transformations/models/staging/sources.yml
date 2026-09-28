@@ -6,3 +6,4 @@ sources:
     schema: entsoe
     tables:
       - name: raw_prices
+      - name: raw_generation

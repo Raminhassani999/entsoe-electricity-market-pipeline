@@ -3,6 +3,10 @@ import os
 from datetime import datetime, timedelta, time, timezone
 import xml.etree.ElementTree as ET
 
+from pathlib import Path
+from google.cloud import storage
+from google.cloud import bigquery
+
 import pandas as pd
 import requests
 from dotenv import load_dotenv
@@ -18,7 +22,10 @@ load_dotenv()
 
 
 API_URL = "https://web-api.tp.entsoe.eu/api"
-
+GCP_PROJECT_ID = "entso-e-electricity-pipeline"
+GCS_BUCKET_NAME = "entso-e-electricity-pipeline-entsoe-raw"
+BIGQUERY_DATASET = "entsoe"
+BIGQUERY_TABLE = "raw_generation"
 BIDDING_ZONE = "10Y1001A1001A73I"
 TIMEZONE_NAME = "Europe/Rome"
 
@@ -399,7 +406,7 @@ def filter_to_target_day(
             drop=True
         )
     )
-    
+
 def validate_generation(
     df: pd.DataFrame,
     start_local: datetime,
@@ -547,6 +554,145 @@ def validate_generation(
             f"{len(missing_times)} missing"
         )
 
+def upload_to_gcs(
+    bucket_name: str,
+    source_file: Path,
+    destination_blob: str,
+    ) -> None:
+    """
+    Upload a local file to Google Cloud Storage.
+    """
+
+    storage_client = storage.Client()
+
+    bucket = storage_client.bucket(
+        bucket_name
+    )
+
+    blob = bucket.blob(
+        destination_blob
+    )
+
+    blob.upload_from_filename(
+        str(source_file)
+    )
+
+    print(
+        "Uploaded to GCS:",
+        f"gs://{bucket_name}/{destination_blob}",
+    )
+def load_to_bigquery(
+    df: pd.DataFrame,
+    project_id: str,
+    dataset_id: str,
+    table_id: str,
+) -> None:
+    """
+    Load generation data into BigQuery.
+
+    Data is first written to a staging table.
+    Then MERGE updates existing rows or inserts new rows.
+    """
+
+    client = bigquery.Client(
+        project=project_id
+    )
+
+    staging_table_id = f"{table_id}_staging"
+
+    staging_table = (
+        f"{project_id}."
+        f"{dataset_id}."
+        f"{staging_table_id}"
+    )
+
+    target_table = (
+        f"{project_id}."
+        f"{dataset_id}."
+        f"{table_id}"
+    )
+
+    job_config = bigquery.LoadJobConfig(
+        write_disposition=(
+            bigquery.WriteDisposition.WRITE_TRUNCATE
+        )
+    )
+
+    load_job = client.load_table_from_dataframe(
+        df,
+        staging_table,
+        job_config=job_config,
+    )
+
+    load_job.result()
+
+    print(
+        "Loaded rows into staging table:",
+        len(df),
+    )
+
+    merge_query = f"""
+    CREATE TABLE IF NOT EXISTS `{target_table}` AS
+    SELECT *
+    FROM `{staging_table}`
+    WHERE FALSE;
+
+    MERGE `{target_table}` AS target
+    USING `{staging_table}` AS source
+
+    ON target.bidding_zone = source.bidding_zone
+    AND target.psr_type = source.psr_type
+    AND target.delivery_start_utc =
+    source.delivery_start_utc
+
+    WHEN MATCHED THEN
+        UPDATE SET
+            generation_mw = source.generation_mw,
+            production_type = source.production_type,
+            unit = source.unit,
+            resolution = source.resolution,
+            delivery_start_local =
+                source.delivery_start_local,
+            delivery_date_local =
+                source.delivery_date_local
+
+    WHEN NOT MATCHED THEN
+        INSERT (
+            delivery_start_utc,
+            generation_mw,
+            bidding_zone,
+            psr_type,
+            production_type,
+            unit,
+            resolution,
+            delivery_start_local,
+            delivery_date_local
+        )
+
+        VALUES (
+            source.delivery_start_utc,
+            source.generation_mw,
+            source.bidding_zone,
+            source.psr_type,
+            source.production_type,
+            source.unit,
+            source.resolution,
+            source.delivery_start_local,
+            source.delivery_date_local
+        );
+    """
+
+    query_job = client.query(
+        merge_query,
+        location="EU",
+    )
+
+    query_job.result()
+
+    print(
+        "BigQuery MERGE completed:",
+        target_table,
+    )
 
 def main():
 
@@ -596,7 +742,39 @@ def main():
         period_start=period_start,
         period_end=period_end,
     )
+    raw_dir = Path(
+        "data/raw/entsoe"
+    )
 
+    raw_dir.mkdir(
+    parents=True,
+    exist_ok=True,
+    )
+
+    raw_file = (
+        raw_dir
+        / f"actual_generation_{target_date}.xml"
+    )
+
+    raw_file.write_text(
+        xml_text,
+        encoding="utf-8",
+    )
+
+    print(
+        "Raw XML saved to:",
+        raw_file,
+    )
+    gcs_object = (
+        f"raw/entsoe/generation/"
+        f"delivery_date={target_date}/"
+    f"actual_generation.xml"
+    )
+    upload_to_gcs(
+        bucket_name=GCS_BUCKET_NAME,
+        source_file=raw_file,
+        destination_blob=gcs_object,
+    )
     print(
         "Received XML:",
         len(xml_text),
@@ -621,6 +799,12 @@ def main():
     df,
     start_local,
     end_local,
+)
+    load_to_bigquery(
+    df=df,
+    project_id=GCP_PROJECT_ID,
+    dataset_id=BIGQUERY_DATASET,
+    table_id=BIGQUERY_TABLE,
 )
 
     print(
