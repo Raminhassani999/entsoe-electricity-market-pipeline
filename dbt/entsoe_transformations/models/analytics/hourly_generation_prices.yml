@@ -1,0 +1,37 @@
+version: 2
+
+models:
+  - name: hourly_generation_prices
+
+    columns:
+      - name: bidding_zone
+        tests:
+          - not_null
+
+      - name: hour_start_utc
+        tests:
+          - not_null
+
+      - name: psr_type
+        tests:
+          - not_null
+
+      - name: production_type
+        tests:
+          - not_null
+
+      - name: average_price_eur_mwh
+        tests:
+          - not_null
+
+      - name: average_generation_mw
+        tests:
+          - not_null
+
+      - name: generation_intervals_available
+        tests:
+          - not_null
+
+      - name: price_intervals_available
+        tests:
+          - not_null
