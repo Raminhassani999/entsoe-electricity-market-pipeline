@@ -7,3 +7,8 @@ output "bigquery_dataset_id" {
   description = "BigQuery dataset ID"
   value       = google_bigquery_dataset.entsoe.dataset_id
 }
+
+output "docker_repository" {
+  description = "Artifact Registry Docker repository"
+  value       = google_artifact_registry_repository.docker.name
+}
