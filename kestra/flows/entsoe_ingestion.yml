@@ -1,0 +1,14 @@
+id: entsoe_ingestion
+namespace: entsoe
+
+tasks:
+  - id: run_ingestion
+    type: io.kestra.plugin.scripts.docker.Commands
+    image: entsoe-ingestion:latest
+
+    env:
+      ENTSOE_API_TOKEN: "{{ secret('ENTSOE_API_TOKEN') }}"
+      GOOGLE_CLOUD_PROJECT: "entso-e-electricity-pipeline"
+
+    commands:
+      - python -m ingestion.entsoe_generation
